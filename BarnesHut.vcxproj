@@ -47,6 +47,9 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>$(ProjectDir)src;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
   </PropertyGroup>
+  <PropertyGroup Label="Vcpkg">
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -89,6 +92,18 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="src\main.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\rendering\RenderSurface.h" />
+    <ClInclude Include="src\rendering\shader_utils.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\rendering\RendererSurface.cpp" />
+    <ClCompile Include="src\rendering\shader_utils.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\quad.frag" />
+    <None Include="src\shaders\quad.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
