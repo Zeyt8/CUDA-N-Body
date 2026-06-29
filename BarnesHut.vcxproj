@@ -65,7 +65,7 @@
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <AdditionalCompilerOptions>/Zc:preprocessor</AdditionalCompilerOptions>
-      <AdditionalOptions>-std=c++20 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-std=c++20 -Xcompiler "/std:c++20" %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -86,16 +86,18 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <AdditionalOptions>-std=c++20 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalCompilerOptions>/Zc:preprocessor</AdditionalCompilerOptions>
+      <AdditionalOptions>-std=c++20 -Xcompiler "/std:c++20" %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="src\main.cu" />
+    <CudaCompile Include="src\simulation\NBodySim.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\rendering\RenderSurface.h" />
     <ClInclude Include="src\rendering\shader_utils.h" />
+    <ClInclude Include="src\simulation\NBodySim.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\rendering\RendererSurface.cpp" />

@@ -15,6 +15,7 @@ extern "C" {
 #include <iostream>
 
 #include "rendering/RenderSurface.h"
+#include "simulation/NBodySim.h"
 
 GLFWwindow* initWindow(int width, int height) {
     glfwInit();
@@ -43,8 +44,13 @@ int main()
     const GLubyte* r = glGetString(GL_RENDERER);
     std::cout << "GPU: " << r << std::endl;
 
+    NBodySim sim = NBodySim(2000);
+
     while (!glfwWindowShouldClose(window)) {
         uchar4* devPtr = renderSurface.MapCudaResource();
+
+        sim.Simulate();
+        sim.Render(devPtr);
 
         renderSurface.UnmapCudaResource();
         glClear(GL_COLOR_BUFFER_BIT);
