@@ -16,6 +16,7 @@ extern "C" {
 
 #include "rendering/RenderSurface.h"
 #include "simulation/NBodySim.h"
+#include "test/tests.h"
 
 GLFWwindow* initWindow(int width, int height) {
     glfwInit();
@@ -34,6 +35,11 @@ GLFWwindow* initWindow(int width, int height) {
 
 int main()
 {
+    std::cout << "Test prefiSum: " << (testPrefixSum() ? "PASSED" : "FAILED") << "\n";
+    std::cout << "Test splitAndSort: " << (testSplitAndSort() ? "PASSED" : "FAILED") << "\n";
+    std::cout << "Test compact: " << (testCompact() ? "PASSED" : "FAILED") << "\n";
+    std::cout << "Test radix sort: " << (testRadixSort() ? "PASSED" : "FAILED") << "\n";
+
     int width = 1080;
     int height = 720;
     GLFWwindow* window = initWindow(width, height);

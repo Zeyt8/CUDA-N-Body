@@ -13,6 +13,6 @@ private:
 	int _bodyCount = 0;
 	float4* _h_particleInfos = nullptr;
 	float4* _d_particleInfos = nullptr;
-	long* _keys = nullptr;
-	long* _maskedKeys = nullptr;
+	uint64_t* _keys = nullptr;
+	uint64_t* _maskedKeys = nullptr;
 };
