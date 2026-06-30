@@ -3,6 +3,7 @@
 #include <cuda/cmath>
 
 #include <chrono>
+#include <iostream>
 
 #include "utils/float3_helpers.cuh"
 
@@ -117,9 +118,23 @@ __global__ static void raytrace(const float3 rayOrigin, const float3* __restrict
 
 void SimDraw::Render(uchar4* pbo)
 {
+	cudaEvent_t start, end;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+
+	cudaEventRecord(start);
+
 	dim3 block(32, 32);
 	dim3 grid(cuda::ceil_div(_width, block.x), cuda::ceil_div(_height, block.y));
 	uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
 	raytrace<<<grid, block>>>(_camera.pos, _rayDirs, _width, _height, _pixelDeltaU, _pixelDeltaV, _bodyInfos, _bodyCount, ms, pbo);
 	cudaDeviceSynchronize();
+
+	cudaEventRecord(end);
+	cudaEventSynchronize(end);
+
+	float time;
+	cudaEventElapsedTime(&time, start, end);
+	std::cout << "Rendering time: " << time << " ms\x1b[K\n" << std::flush;
 }

@@ -106,7 +106,7 @@ __device__ void compact(T* __restrict__ values, Key* __restrict__ keys, const in
 }
 
 template<typename T, typename Key>
-__device__ void compactIndices(Key* __restrict__ keys, const int len, Key keyBefore, T* __restrict__ values)
+__global__ void compactIndices(Key* __restrict__ keys, const int len, Key keyBefore, T* __restrict__ values)
 {
 	int idx = blockDim.x * blockIdx.x + threadIdx.x;
 	bool active = idx < len;

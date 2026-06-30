@@ -59,7 +59,7 @@ int main()
     while (!glfwWindowShouldClose(window)) {
         uchar4* devPtr = renderSurface.MapCudaResource();
 
-        //sim.Simulate();
+        sim.Simulate();
         drawer.Render(devPtr);
 
         renderSurface.UnmapCudaResource();

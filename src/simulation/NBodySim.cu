@@ -15,6 +15,13 @@ const int Nleaf = 16;
 
 NBodySim::NBodySim(int bodyCount)
 {
+	cudaEvent_t start, end;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+
+	cudaEventRecord(start);
+
+
 	_bodyCount = bodyCount;
 
 	cudaMallocHost(&_h_particleInfos, _bodyCount * sizeof(float4));
@@ -37,6 +44,17 @@ NBodySim::NBodySim(int bodyCount)
 
 	cudaMemcpy(_d_particleInfos, _h_particleInfos, bodyCount * sizeof(float4), cudaMemcpyDefault);
 	cudaFreeHost(_h_particleInfos);
+
+	cudaEventRecord(end);
+	cudaEventSynchronize(end);
+
+	float time;
+	cudaEventElapsedTime(&time, start, end);
+	std::cout << "\n" << "Sim init time: " << time << " ms\n" << std::flush;
+	for (int i = 0; i < 3; i++)
+	{
+		std::cout << "Dummy\n" << std::flush;
+	}
 }
 
 NBodySim::~NBodySim()
@@ -52,16 +70,29 @@ NBodySim::~NBodySim()
 
 void NBodySim::Simulate()
 {
+	cudaEvent_t startMorton, endMorton;
+	cudaEventCreate(&startMorton);
+	cudaEventCreate(&endMorton);
+
+	cudaEventRecord(startMorton);
+
 	int threadsPerBlock = 256;
 	int blocks = cuda::ceil_div(_bodyCount, threadsPerBlock);
 	computeMortonKeys<<<blocks, threadsPerBlock>>>(_d_particleInfos, _bodyCount, domainMin, domainMax, _keys);
-
 	cudaDeviceSynchronize();
 
 	void* kernelArgs[] = { &_d_particleInfos, &_keys, &_bodyCount };
 	cudaLaunchCooperativeKernel(radixSortByKey<float4, uint64_t>, dim3(blocks), dim3(threadsPerBlock), kernelArgs);
-
 	cudaDeviceSynchronize();
+
+	cudaEventRecord(endMorton);
+
+
+	cudaEvent_t startPartition, endPartition;
+	cudaEventCreate(&startPartition);
+	cudaEventCreate(&endPartition);
+
+	cudaEventRecord(startPartition);
 
 	bool* _flagged;
 	initActiveList<<<blocks, threadsPerBlock>>>(_activeList, _bodyCount);
@@ -85,42 +116,56 @@ void NBodySim::Simulate()
 		cudaDeviceSynchronize();
 
 		// TODO: this is wrong, _headFlags is on the GPU
-		int numGroups = 0;
-		for (int i = 0; i < len; i++)
-		{
-			if (_headFlags[i])
-			{
-				numGroups++;
-			}
-		}
-		int* groupSizes = _headFlags;
-		getGroupSizes<<<blocks, threadsPerBlock>>>(_groupStarts, numGroups, len, groupSizes);
-		cudaDeviceSynchronize();
-
-		classifyGroups<<<blocks, threadsPerBlock>>>(_activeList, _groupStarts, groupSizes, numGroups);
-		cudaDeviceSynchronize();
-
-		void* kernelArgs3[] = { &_activeList, &len, &_flagged };
-		cudaLaunchCooperativeKernel(setFlagged, dim3(blocks), dim3(threadsPerBlock), kernelArgs3);
-		cudaDeviceSynchronize();
+		//int numGroups = 0;
+		//for (int i = 0; i < len; i++)
+		//{
+		//	if (_headFlags[i])
+		//	{
+		//		numGroups++;
+		//	}
+		//}
+		//int* groupSizes = _headFlags;
+		//getGroupSizes<<<blocks, threadsPerBlock>>>(_groupStarts, numGroups, len, groupSizes);
+		//cudaDeviceSynchronize();
+		//
+		//classifyGroups<<<blocks, threadsPerBlock>>>(_activeList, _groupStarts, groupSizes, numGroups);
+		//cudaDeviceSynchronize();
+		//
+		//void* kernelArgs3[] = { &_activeList, &len, &_flagged };
+		//cudaLaunchCooperativeKernel(setFlagged, dim3(blocks), dim3(threadsPerBlock), kernelArgs3);
+		//cudaDeviceSynchronize();
 
 		// TODO: this is wrong, _flagged is on the GPU
-		int newLen = 0;
-		for (int i = 0; i < len; i++)
-		{
-			if (_flagged[i])
-			{
-				newLen++;
-			}
-		}
-
-		bool dummyKey2 = 0;
-		void* kernelArgs4[] = { &_activeList, &_flagged, &len, &dummyKey2 };
-		cudaLaunchCooperativeKernel(compact<int, bool>, dim3(blocks), dim3(threadsPerBlock), kernelArgs4);
-		cudaDeviceSynchronize();
-
-		len = newLen;
+		//int newLen = 0;
+		//for (int i = 0; i < len; i++)
+		//{
+		//	if (_flagged[i])
+		//	{
+		//		newLen++;
+		//	}
+		//}
+		//
+		//bool dummyKey2 = 0;
+		//void* kernelArgs4[] = { &_activeList, &_flagged, &len, &dummyKey2 };
+		//cudaLaunchCooperativeKernel(compact<int, bool>, dim3(blocks), dim3(threadsPerBlock), kernelArgs4);
+		//cudaDeviceSynchronize();
+		//
+		//len = newLen;
 
 		level++;
 	}
+
+	cudaEventRecord(endPartition);
+
+	cudaEventSynchronize(endMorton);
+	cudaEventSynchronize(endPartition);
+
+	float timeMorton;
+	cudaEventElapsedTime(&timeMorton, startMorton, endMorton);
+	std::cout << "\x1b[3A" << std::flush;
+	std::cout << "Morton keys and sort time: " << timeMorton << " ms\x1b[K\n" << std::flush;
+
+	float timePartition;
+	cudaEventElapsedTime(&timePartition, startPartition, endPartition);
+	std::cout << "Partition time: " << timePartition << " ms\x1b[K\n" << std::flush;
 }
