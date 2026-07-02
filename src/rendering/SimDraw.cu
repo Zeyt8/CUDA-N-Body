@@ -209,4 +209,7 @@ void SimDraw::Render(uchar4* pbo)
 	float time;
 	cudaEventElapsedTime(&time, start, end);
 	std::cout << "Rendering time: " << time << " ms\x1b[K\n" << std::flush;
+
+	cudaEventDestroy(start);
+	cudaEventDestroy(end);
 }

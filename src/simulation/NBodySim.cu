@@ -299,4 +299,11 @@ void NBodySim::Simulate(float delta)
 	cudaEventElapsedTime(&timeVel, velStart, velEnd);
 	cudaEventElapsedTime(&timeMov, movStart, movEnd);
 	std::cout << "Movement time: " << timeVel + timeMov << " ms\x1b[K\n" << std::flush;
+
+	cudaEventDestroy(startMorton);
+	cudaEventDestroy(endMorton);
+	cudaEventDestroy(startPartition);
+	cudaEventDestroy(endPartition);
+	cudaEventDestroy(movStart);
+	cudaEventDestroy(movEnd);
 }
