@@ -10,7 +10,7 @@
 #include "utils.h"
 
 const int domainMin = 0;
-const int domainMax = 5000;
+const int domainMax = 10000;
 const int NLeaf = 16;
 
 NBodySim::NBodySim(int bodyCount)
@@ -59,27 +59,33 @@ NBodySim::NBodySim(int bodyCount)
 
 	std::random_device rd;
 	std::mt19937 rng(rd());
-	std::uniform_real_distribution<float> posDist(domainMin + (domainMax - domainMin) / 4, domainMax - (domainMax - domainMin) / 4);
+	std::uniform_real_distribution<float> posDist(domainMin + (domainMax - domainMin) / 4.0f, domainMax - (domainMax - domainMin) / 4.0f);
 	std::uniform_real_distribution<float> massDist(0, 1);
-	int bigMass = 101;
-	h_particleInfos[0] = make_float4(domainMax / 2 + 10, 1, domainMax / 2 + 10, bigMass);
+	int bigMass = 10001;
+	h_particleInfos[0] = make_float4(domainMax / 2 + 10, domainMax / 2 + 10, domainMax / 2 + 10, bigMass);
 	for (int i = 1; i < bodyCount; i++)
 	{
 		double r = massDist(rng);
 		double biased = std::pow(r, 10);
-		double scaled = 0.1f + biased * (1 - 0.1f);
-		h_particleInfos[i] = make_float4(posDist(rng), 1, posDist(rng), scaled);
+		double massScaled = 0.1f + biased * (2 - 0.1f);
+		float3 randPos;
+		do
+		{
+			randPos = make_float3(posDist(rng), posDist(rng), posDist(rng));
+		} while (length(randPos - float3(domainMax / 2, domainMax / 2, domainMax / 2)) < 2000);
+		h_particleInfos[i] = make_float4(randPos.x, randPos.y, randPos.z, massScaled);
 	}
 
 	h_initVelocities[0] = make_float3(0, 0, 0);
 	for (int i = 1; i < bodyCount; i++)
 	{
 		float dx = h_particleInfos[i].x - (domainMax + domainMin) / 2.0f;
+		float dy = h_particleInfos[i].y - (domainMax + domainMin) / 2.0f;
 		float dz = h_particleInfos[i].z - (domainMax + domainMin) / 2.0f;
-		float r = sqrtf(dx * dx + dz * dz);
+		float r = sqrtf(dx * dx + dy * dy + dz * dz);
 		float v = sqrtf(bigMass / r);
-		float3 vel = make_float3(dz / r, 0.0f, -dx / r) * v;
-		h_initVelocities[i] = vel;
+		float3 vel = make_float3(dz / r, dy / r, -dx / r) * v;
+		h_initVelocities[i] = vel * 1.0f;
 	}
 	cudaMemcpy(_velocities, h_initVelocities, bodyCount * sizeof(float3), cudaMemcpyDefault);
 
@@ -130,11 +136,19 @@ void NBodySim::Simulate(float delta)
 	int threadsPerBlock = 256;
 	int bodyBlocks = cuda::ceil_div(_bodyCount, threadsPerBlock);
 
-	correctVelocities<<<bodyBlocks, threadsPerBlock>>>(_velocities, _bodyCount, _accelerations, _accelerationsPrev, delta);
+	cudaEvent_t movStart, movEnd;
+	cudaEventCreate(&movStart);
+	cudaEventCreate(&movEnd);
+
+	cudaEventRecord(movStart);
+
+	correctVelocities<<<bodyBlocks, threadsPerBlock>>>(_velocities, _bodyCount, _accelerations, _accelerationsPrev, -0.0f, delta);
 	cudaDeviceSynchronize();
 
 	movePos<<<bodyBlocks, threadsPerBlock>>>(_d_particleInfos, _bodyCount, _velocities, _accelerations, delta);
 	cudaDeviceSynchronize();
+
+	cudaEventRecord(movEnd);
 
 	cudaEvent_t startMorton, endMorton;
 	cudaEventCreate(&startMorton);
@@ -235,11 +249,11 @@ void NBodySim::Simulate(float delta)
 
 	cudaEventRecord(endPartition);
 
-	cudaEvent_t movementStart, movementEnd;
-	cudaEventCreate(&movementStart);
-	cudaEventCreate(&movementEnd);
+	cudaEvent_t velStart, velEnd;
+	cudaEventCreate(&velStart);
+	cudaEventCreate(&velEnd);
 
-	cudaEventRecord(movementStart);
+	cudaEventRecord(velStart);
 
 	int hLeafCount = 0;
 	cudaMemset(_leafCount, 0, sizeof(int));
@@ -265,21 +279,24 @@ void NBodySim::Simulate(float delta)
 	computeVelocities<<<hLeafCount, threadsPerBlock>>>(_cells, cellCount, _leafIndices, _d_particleInfos, _leafParticles, _accelerations, theta, domainMin, domainMax);
 	cudaDeviceSynchronize();
 
-	cudaEventRecord(movementEnd);
+	cudaEventRecord(velEnd);
 
 	cudaEventSynchronize(endMorton);
 	cudaEventSynchronize(endPartition);
+	cudaEventSynchronize(movEnd);
 
 	float timeMorton;
 	cudaEventElapsedTime(&timeMorton, startMorton, endMorton);
-	std::cout << "\x1b[4A" << std::flush;
+	std::cout << "\x1b[5A" << std::flush;
 	std::cout << "Morton keys and sort time: " << timeMorton << " ms\x1b[K\n" << std::flush;
 
 	float timePartition;
 	cudaEventElapsedTime(&timePartition, startPartition, endPartition);
 	std::cout << "Partition time: " << timePartition << " ms\x1b[K\n" << std::flush;
 
-	float timeMovement;
-	cudaEventElapsedTime(&timeMovement, movementStart, movementEnd);
-	std::cout << "Movement time: " << timeMovement << " ms\x1b[K\n" << std::flush;
+	float timeVel;
+	float timeMov;
+	cudaEventElapsedTime(&timeVel, velStart, velEnd);
+	cudaEventElapsedTime(&timeMov, movStart, movEnd);
+	std::cout << "Movement time: " << timeVel + timeMov << " ms\x1b[K\n" << std::flush;
 }

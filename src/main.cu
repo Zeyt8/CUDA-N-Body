@@ -19,6 +19,7 @@ extern "C" {
 #include "rendering/Camera.h"
 #include "rendering/SimDraw.h"
 #include "simulation/NBodySim.h"
+#include "utils/float3_helpers.cuh"
 #include "test/tests.h"
 
 GLFWwindow* initWindow(int width, int height) {
@@ -53,18 +54,28 @@ int main()
     const GLubyte* r = glGetString(GL_RENDERER);
     std::cout << "GPU: " << r << std::endl;
 
-    Camera cam = Camera(float3(2500, 5500, 2500), float3(0, -1, 0), float3(0, 0, 1), 1.0f);
-    int bodyCount = 10;
+    float3 camPos = make_float3(-5000, 10000, -5000);
+    float3 camLookAt = make_float3(5000, 5000, 5000);
+    float3 worldUp = make_float3(0, 1, 0);
+    float3 forward = normalized(camLookAt - camPos);
+    float3 right = normalized(cross(worldUp, forward));
+    float3 up = cross(forward, right);
+    Camera cam = Camera(camPos,
+                        forward,
+                        up,
+                        1.0f);
+    int bodyCount = 1000;
     NBodySim sim = NBodySim(bodyCount);
     SimDraw drawer = SimDraw(width, height, cam, sim.GetBodyInfos(), bodyCount, sim.GetCells(), sim.GetCellCount());
 
+    float timeScale = 1000;
     auto lastTime = std::chrono::high_resolution_clock::now();
     while (!glfwWindowShouldClose(window)) {
         auto currentTime = std::chrono::high_resolution_clock::now();
         float delta = std::chrono::duration<float>(currentTime - lastTime).count();
         uchar4* devPtr = renderSurface.MapCudaResource();
 
-        sim.Simulate(delta);
+        sim.Simulate(delta * timeScale);
         drawer.Render(devPtr);
 
         renderSurface.UnmapCudaResource();
@@ -73,6 +84,9 @@ int main()
         
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+        lastTime = currentTime;
+        std::cout << "Total: " << delta * 1000 << " ms\x1b[K\n" << std::flush;
     }
 
     renderSurface.Cleanup();

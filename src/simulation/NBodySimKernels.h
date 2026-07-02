@@ -300,26 +300,49 @@ __global__ void findRoot(const Cell* cells, int cellCount, int* rootIndex)
 	}
 }
 
-__device__ float3 monopoleForce(float3 particlePos, float3 cellCom, float cellMass)
+__device__ float3 monopoleForce(float3 particlePos, const Cell& cell)
 {
-	float3 r = cellCom - particlePos;
+	float3 r = make_float3(cell.com.x - particlePos.x,
+						   cell.com.y - particlePos.y,
+						   cell.com.z - particlePos.z);
 	float r2 = lengthSquared(r) + epsilon * epsilon;
 	float r1 = sqrtf(r2);
 	float r3 = r2 * r1;
-	return make_float3(cellMass * r.x / r3,
-					   cellMass * r.y / r3,
-					   cellMass * r.z / r3);
+	float r5 = r3 * r2;
+	float r7 = r5 * r2;
+
+	// monopole
+	float3 acc = make_float3(cell.mass * r.x / r3,
+							 cell.mass * r.y / r3,
+							 cell.mass * r.z / r3);
+
+	// quadrupole
+	float Qzz = -(float)cell.Qxx - (float)cell.Qyy;
+
+	float Qr_x = (float)cell.Qxx * r.x + (float)cell.Qxy * r.y + (float)cell.Qxz * r.z;
+	float Qr_y = (float)cell.Qxy * r.x + (float)cell.Qyy * r.y + (float)cell.Qyz * r.z;
+	float Qr_z = (float)cell.Qxz * r.x + (float)cell.Qyz * r.y + Qzz * r.z;
+
+	float rQr = r.x * Qr_x + r.y * Qr_y + r.z * Qr_z;
+
+	float c1 = 1.5f / r5;
+	float c2 = 2.5f * rQr / r7;
+
+	acc.x += c2 * r.x - c1 * Qr_x;
+	acc.y += c2 * r.y - c1 * Qr_y;
+	acc.z += c2 * r.z - c1 * Qr_z;
+
+	return acc;
 }
 
 __device__ void flushCellList(const Cell* __restrict__ cells, const float4* __restrict__ groupParticles, const int* __restrict__ cellList,
 	int& cellListSize, float3* __restrict__ myAcc, const int groupCount)
 {
-	__shared__ float4 cellData[256];
+	__shared__ Cell cellData[256];
 
 	if (threadIdx.x < cellListSize)
 	{
-		Cell c = cells[cellList[threadIdx.x]];
-		cellData[threadIdx.x] = make_float4(c.com.x, c.com.y, c.com.z, c.mass);
+		cellData[threadIdx.x] = cells[cellList[threadIdx.x]];
 	}
 	__syncthreads();
 
@@ -331,9 +354,8 @@ __device__ void flushCellList(const Cell* __restrict__ cells, const float4* __re
 		int count = min(cellListSize, blockDim.x);
 		for (int i = 0; i < count; i++)
 		{
-			myAcc->x += monopoleForce(pos, make_float3(cellData[i].x, cellData[i].y, cellData[i].z), cellData[i].w).x;
-			myAcc->y += monopoleForce(pos, make_float3(cellData[i].x, cellData[i].y, cellData[i].z), cellData[i].w).y;
-			myAcc->z += monopoleForce(pos, make_float3(cellData[i].x, cellData[i].y, cellData[i].z), cellData[i].w).z;
+			float3 f = monopoleForce(pos, cellData[i]);
+			*myAcc = *myAcc + f;
 		}
 	}
 	__syncthreads();
@@ -552,10 +574,12 @@ __global__ void movePos(float4* __restrict__ particles, const int particleCount,
 	particles[idx].z += posChange.z;
 }
 
-__global__ void correctVelocities(float3* __restrict__ velocities, const int count, const float3* __restrict__ accsNew, const float3* __restrict__ accsOld, const float deltaTime)
+__global__ void correctVelocities(float3* __restrict__ velocities, const int count, const float3* __restrict__ accsNew, const float3* __restrict__ accsOld, const float drag, const float deltaTime)
 {
 	int idx = blockDim.x * blockIdx.x + threadIdx.x;
 	if (idx >= count) return;
 
 	velocities[idx] = velocities[idx] + (accsNew[idx] + accsOld[idx]) * 0.5f * deltaTime;
+	float damping = expf(drag * deltaTime);
+	velocities[idx] = velocities[idx] * damping;
 }

@@ -10,7 +10,7 @@
 
 #define PI 3.1415926535897932385f
 const int domainMin = 0;
-const int domainMax = 5000;
+const int domainMax = 10000;
 
 __device__ static inline int idx(int x, int y, int width)
 {
@@ -134,45 +134,45 @@ __global__ static void raytrace(const float3 rayOrigin, const float3* __restrict
 
 	float3 color = make_float3(0, 0, 0);
 	float3 backgroundColor = make_float3(0, 0, 0);
-	int sampleCount = 5;
+	int sampleCount = 4;
 	for (int sample = 0; sample < sampleCount; sample++)
 	{
 		float3 dir = initialDir;
 		dir.x += ((float)getRandom(state) / UINT32_MAX - 0.5f) * pixelDU.x;
 		dir.y += ((float)getRandom(state) / UINT32_MAX - 0.5f) * pixelDV.y;
 
-		for (int i = 0; i < *cellCount; i++)
-		{
-			uint32_t ix, iy, iz;
-			decodeMortonKey(cells[i].key, cells[i].level, ix, iy, iz);
-
-			float cellSize = (domainMax - domainMin) / (float)(1 << (cells[i].level + 1));
-
-			float3 boxMin = make_float3(domainMin + ix * cellSize,
-				/*domainMin + iy * cellSize*/-1,
-				domainMin + iz * cellSize);
-			float3 boxMax = make_float3(boxMin.x + cellSize,
-				/*boxMin.y + cellSize*/ 1,
-				boxMin.z + cellSize);
-
-			float4 centerOfMass = make_float4(cells[i].com.x, cells[i].com.y, cells[i].com.z, 0.5f);
-			float p = hitBody(centerOfMass, rayOrigin, dir);
-			if (p >= 0)
-			{
-				color = color + make_float3(1, 0, 0) / sampleCount;
-				break;
-			}
-
-			p = hitWireBox(boxMin, boxMax, rayOrigin, dir, 5.0f);
-			if (p >= 0)
-			{
-				float3 wireColor = (cells[i].type == LEAF)
-					? make_float3(0, 1, 0)
-					: make_float3(1, 1, 0);
-				color = color + wireColor / sampleCount;
-				break;
-			}
-		}
+		//for (int i = 0; i < *cellCount; i++)
+		//{
+		//	uint32_t ix, iy, iz;
+		//	decodeMortonKey(cells[i].key, cells[i].level, ix, iy, iz);
+		//
+		//	float cellSize = (domainMax - domainMin) / (float)(1 << (cells[i].level + 1));
+		//
+		//	float3 boxMin = make_float3(domainMin + ix * cellSize,
+		//		domainMin + iy * cellSize,
+		//		domainMin + iz * cellSize);
+		//	float3 boxMax = make_float3(boxMin.x + cellSize,
+		//		boxMin.y + cellSize,
+		//		boxMin.z + cellSize);
+		//
+		//	float4 centerOfMass = make_float4(cells[i].com.x, cells[i].com.y, cells[i].com.z, 0.5f);
+		//	float p = hitBody(centerOfMass, rayOrigin, dir);
+		//	if (p >= 0)
+		//	{
+		//		color = color + make_float3(1, 0, 0) / sampleCount;
+		//		break;
+		//	}
+		//
+		//	p = hitWireBox(boxMin, boxMax, rayOrigin, dir, 20.0f);
+		//	if (p >= 0)
+		//	{
+		//		float3 wireColor = (cells[i].type == LEAF)
+		//			? make_float3(0, 1, 0)
+		//			: make_float3(1, 1, 0);
+		//		color = color + wireColor / sampleCount;
+		//		break;
+		//	}
+		//}
 	
 		for (int i = 0; i < bodyCount; i++)
 		{
